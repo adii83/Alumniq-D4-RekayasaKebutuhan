@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AlumniQ - Sistem Pelacakan Alumni AI</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+    <style>
+        body { font-family: "Inter", sans-serif; background: #f5f7fb; }
+        .alumniq-underline { display: inline-flex; flex-direction: column; align-items: center; font-family: "Playfair Display", serif; font-size: 2.2rem; font-weight: 700; color: #fefcbf; }
+        .creative-q { display: inline-block; position: relative; color: #b76e3c; font-size: 2.6rem; transform: rotate(3deg) translateY(-2px); margin-left: -3px; text-shadow: 0 2px 5px rgba(183,110,60,0.3); }
+        .creative-q::after { content: ""; position: absolute; bottom: -4px; right: -10px; width: 18px; height: 18px; border-right: 3px solid #b76e3c; border-bottom: 3px solid #b76e3c; border-radius: 0 0 15px 0; transform: rotate(-5deg); opacity: 0.9; }
+        .creative-q::before { content: "•"; position: absolute; top: -8px; right: -6px; font-size: 1.5rem; color: #d4af37; text-shadow: 0 0 8px #f1c40f; line-height: 1; }
+        .underline-svg { margin-top: -15px; width: 100%; height: auto; }
+        .premium-bg { background: linear-gradient(145deg, #b76e3c, #9a4e1f); }
+        .premium-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.7); box-shadow: 0 20px 35px -10px rgba(0,0,0,0.1), 0 5px 15px -5px rgba(0,0,0,0.05); transition: all 0.25s ease; }
+        .premium-input { border: 1.5px solid #e9edf2; border-radius: 1rem; padding: 0.75rem 1.25rem; font-size: 0.95rem; background-color: #ffffff; transition: all 0.2s; }
+        .premium-input:focus { border-color: #b76e3c; box-shadow: 0 0 0 4px rgba(183,110,60,0.15); outline: none; }
+        .table-modern th { font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; color: #6b7280; background-color: #fafbfc; border-bottom: 2px solid #eaeef2; }
+        .table-modern td { padding: 1rem 1.5rem; vertical-align: middle; border-bottom: 1px solid #edf2f7; }
+        .table-modern tbody tr:hover { background-color: #fefaf6; }
+        /* Scrollbar styles for the modal */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col">
+    <nav class="bg-slate-900/90 backdrop-blur-xl text-white sticky top-0 z-50 border-b border-slate-700/30 shadow-2xl">
+        <div class="max-w-[1600px] mx-auto px-6 sm:px-10 lg:px-14">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center">
+                    <div class="alumniq-underline text-xl scale-75 transform origin-left">
+                        <span>Alumni<span class="creative-q">q</span></span>
+                    </div>
+                    <span class="ml-4 text-xs font-semibold text-slate-400 tracking-wider uppercase border-l border-slate-700 pl-4 py-1">Admin Panel</span>
+                </div>
+                <button onclick="logout()" class="text-sm font-semibold text-red-400 hover:text-red-300 transition px-3 py-1.5 rounded-lg hover:bg-red-950/30">
+                    Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow max-w-[1600px] mx-auto px-6 sm:px-10 lg:px-14 py-8 w-full block">
+        
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Database Alumni</h1>
+                <p class="text-slate-500 mt-1">Cari dan lacak data alumni dari Excel.</p>
+            </div>
+            
+            <!-- Search Bar -->
+            <form id="searchForm" class="flex w-full md:w-auto relative">
+                <input type="text" id="searchInput" placeholder="Cari nama alumni..." class="premium-input w-full md:w-96 pl-12 pr-4 py-3 rounded-full" />
+                <svg class="w-5 h-5 absolute left-4 top-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <button type="submit" class="absolute right-2 top-1.5 bottom-1.5 px-6 rounded-full premium-bg text-white font-semibold text-sm hover:opacity-90 transition shadow-md">Cari</button>
+            </form>
+        </div>
+
+        <!-- Kategori / Tabs Status -->
+        <div class="flex overflow-x-auto hide-scrollbar mb-6 border-b border-slate-200">
+            <button onclick="setTabFilter('Semua')" class="tab-btn px-6 py-3 font-semibold text-sm border-b-2 border-[#b76e3c] text-[#b76e3c] transition-colors whitespace-nowrap" data-filter="Semua">Semua Data</button>
+            <button onclick="setTabFilter('Teridentifikasi')" class="tab-btn px-6 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors whitespace-nowrap" data-filter="Teridentifikasi">Teridentifikasi</button>
+            <button onclick="setTabFilter('Perlu Verifikasi Manual')" class="tab-btn px-6 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors whitespace-nowrap" data-filter="Perlu Verifikasi Manual">Perlu Verifikasi</button>
+            <button onclick="setTabFilter('Belum Ditemukan')" class="tab-btn px-6 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors whitespace-nowrap" data-filter="Belum Ditemukan">Belum / Gagal Ditemukan</button>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden premium-card">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left table-modern">
+                    <thead>
+                        <tr>
+                            <th class="px-6 py-4 w-1/4">Nama Lulusan</th>
+                            <th class="px-6 py-4 w-1/5">Program Studi</th>
+                            <th class="px-6 py-4 w-1/3">Informasi</th>
+                            <th class="px-6 py-4 text-center w-1/6">Status</th>
+                            <th class="px-6 py-4 text-center w-40">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alumni-table-body" class="divide-y divide-slate-100">
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="loading" class="hidden py-16 text-center">
+                <div class="inline-block animate-spin w-10 h-10 border-4 border-amber-600 border-t-transparent rounded-full mb-4"></div>
+                <p class="text-sm text-slate-500 font-medium">Memuat data...</p>
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div class="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-slate-50/50">
+                <p class="text-sm text-slate-500" id="pagination-info">Menampilkan 0 data</p>
+                <div class="flex gap-2">
+                    <button onclick="prevPage()" id="btnPrev" class="px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Sebelumnya</button>
+                    <button onclick="nextPage()" id="btnNext" class="px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Selanjutnya</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Tinjau Simpan -->
+    <div id="detailModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col transform transition-all">
+            <div class="flex items-center justify-between px-8 py-5 border-b border-slate-100">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900" id="modal-title">Tinjau & Verifikasi</h2>
+                    <p class="text-sm text-slate-500 mt-0.5" id="modal-subtitle">Silahkan memverifikasi dan mengisi data target.</p>
+                </div>
+                <button onclick="closeDetailModal()" class="text-slate-400 hover:text-slate-700 transition text-3xl leading-none">&times;</button>
+            </div>
+
+            <div class="overflow-y-auto flex-1 p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Left: Tracking Logic -->
+                <div class="space-y-6">
+                    <h3 class="font-bold text-slate-800 text-lg border-b pb-2">Jejak Digital Ditemukan</h3>
+                    <div>
+                        <div id="modal-platform-links" class="flex flex-col gap-3"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Catatan Rekap Temuan</label>
+                        <textarea id="modal-notes" rows="4" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-[#b76e3c] focus:ring-1 focus:ring-[#b76e3c] bg-slate-50 relative resize-none"></textarea>
+                    </div>
+                </div>
+
+                <!-- Right: Fillable Data Form (Based on Assignment) -->
+                <div class="space-y-5 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <h3 class="font-bold text-[#b76e3c] text-lg border-b border-slate-200 pb-2">Data Ekstraksi (Penugasan)</h3>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Pekerjaan/Posisi</label>
+                            <input type="text" id="f_position" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white" placeholder="Contoh: HR Manager" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Jenis</label>
+                            <select id="f_job_type" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white">
+                                <option value="">- Pilih Jenis -</option>
+                                <option value="PNS">PNS</option>
+                                <option value="Swasta">Swasta</option>
+                                <option value="Wirausaha">Wirausaha</option>
+                            </select>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Tempat Bekerja (Nama Perusahaan)</label>
+                            <input type="text" id="f_company" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white" />
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Alamat Tempat Bekerja</label>
+                            <input type="text" id="f_company_address" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white" />
+                        </div>
+                        
+                        <!-- Contact -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mt-2 mb-1">Email</label>
+                            <input type="email" id="f_email" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mt-2 mb-1">No HP</label>
+                            <input type="text" id="f_phone" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white" />
+                        </div>
+                        
+                        <!-- Socials -->
+                        <div class="col-span-2 pt-2 border-t border-slate-200 mt-2">
+                            <p class="text-xs font-bold text-slate-600 mb-3">Tautan Sosial Media</p>
+                            <div class="space-y-3">
+                                <input type="text" id="f_linkedin" class="w-full text-xs font-mono border border-slate-200 rounded-md px-3 py-1.5 focus:border-blue-400" placeholder="LinkedIn URL" />
+                                <input type="text" id="f_ig" class="w-full text-xs font-mono border border-slate-200 rounded-md px-3 py-1.5 focus:border-pink-400" placeholder="Instagram URL" />
+                                <input type="text" id="f_fb" class="w-full text-xs font-mono border border-slate-200 rounded-md px-3 py-1.5 focus:border-blue-600" placeholder="Facebook URL" />
+                                <input type="text" id="f_tiktok" class="w-full text-xs font-mono border border-slate-200 rounded-md px-3 py-1.5 focus:border-black" placeholder="TikTok URL" />
+                                <input type="text" id="f_company_social" class="w-full text-xs font-mono border border-slate-200 rounded-md px-3 py-1.5" placeholder="Social Media Tempat Bekerja URL" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-8 py-5 border-t border-slate-100 flex justify-between bg-slate-50 rounded-b-2xl">
+                <button onclick="modalMarkNotFound()" class="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm hover:text-red-600">
+                    Tandai Tidak Ditemukan
+                </button>
+                <div class="flex gap-3">
+                    <button onclick="closeDetailModal()" class="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 transition">Batal</button>
+                    <button onclick="modalSaveVerified()" class="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/30 transition transform hover:scale-[1.02]">
+                        Verifikasi & Simpan Bukti
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=2"></script>
+</body>
+</html>
