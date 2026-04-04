@@ -1,11 +1,14 @@
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
 import time
 import random
 import requests
+import os
 from urllib.parse import quote_plus, urlparse
 from bs4 import BeautifulSoup
 
@@ -16,21 +19,33 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistem Pelacakan Alumni API")
 
-# Configure CORS for frontend access
-origins = [
-    "http://localhost:5500",
-    "http://127.0.0.1:5500",
-    "http://localhost:3000",
-    "https://adii83.github.io",
-]
-
+# Configure CORS - izinkan semua origin agar bisa diakses dari GitHub Pages / Render
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Sajikan file frontend statis (index.html, login.html, app.js) dari folder parent
+_FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..")
+if os.path.isdir(_FRONTEND_DIR):
+    app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="static")
+
+@app.get("/")
+def serve_login():
+    login_path = os.path.join(_FRONTEND_DIR, "login.html")
+    if os.path.exists(login_path):
+        return FileResponse(login_path)
+    return {"message": "AlumniQ API"}
+
+@app.get("/app")
+def serve_app():
+    index_path = os.path.join(_FRONTEND_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "App not found"}
 
 
 def _fetch_text(url: str, timeout: int = 8) -> str:

@@ -4,7 +4,8 @@ if (!token) {
     window.location.href = 'login.html';
 }
 
-const API_URL = 'http://localhost:8000';
+// API URL: gunakan dari localStorage (disimpan saat login) atau default localhost
+const API_URL = localStorage.getItem('api_backend') || 'http://localhost:8000';
 
 // Global State
 let currentPage = 1;
