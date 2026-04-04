@@ -16,6 +16,24 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistem Pelacakan Alumni API")
 
+@app.on_event("startup")
+def reset_stuck_tracking():
+    # Fitur canggih: Membersihkan riwayat 'Sedang Dilacak...' yang nyangkut karena server render terputus
+    from database import SessionLocal
+    import models
+    db = SessionLocal()
+    try:
+        stuck = db.query(models.Alumni).filter(models.Alumni.status == 'Sedang Dilacak...').all()
+        for s in stuck:
+            s.status = 'Gagal'
+        if stuck:
+            db.commit()
+            print(f"[System] Berhasil me-reset {len(stuck)} data alumni yang tersangkut.")
+    except Exception as e:
+        pass
+    finally:
+        db.close()
+
 # Configure CORS for frontend access
 origins = [
     "http://localhost:5500",
@@ -373,6 +391,11 @@ def mock_scraping_task(alumni_id: int): # Tidak lagi butuh db dari argumen
     except Exception as e:
         print(f"[Error] Gagal saat pelacakan background: {e}")
         if 'db' in locals():
+            try:
+                alumni.status = "Gagal"
+                db.commit()
+            except:
+                pass
             db.close()
 
 class LoginRequest(schemas.BaseModel):
@@ -382,8 +405,6 @@ class LoginRequest(schemas.BaseModel):
 @app.post("/login")
 def login(request: LoginRequest):
     import os
-    # Mengambil kredensial dari Environment Variable (Aman di Github)
-    # Jika di Render tidak diset, maka akan memakai "admin" & "bukan-buat-publik" sbg default cadangan
     valid_username = os.getenv("ADMIN_USERNAME", "admin")
     valid_password = os.getenv("ADMIN_PASSWORD", "bukan-buat-publik")
     
