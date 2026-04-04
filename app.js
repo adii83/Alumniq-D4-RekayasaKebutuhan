@@ -5,7 +5,7 @@ if (!token) {
 }
 
 // Ganti variabel ini dengan link URL backend Anda dari Render setelah ter-deploy
-const API_URL = 'https://backend-alumni-api.onrender.com';
+const API_URL = 'https://alumniq-d4-rekayasa-kebutuhan.onrender.com';
 
 // Global State
 let currentPage = 1;
