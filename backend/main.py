@@ -346,6 +346,7 @@ def mock_scraping_task(alumni_id: int): # Tidak lagi butuh db dari argumen
             # Keputusan: User minta 'manual saja'. 
             # Jadi kita selalu set 'Perlu Verifikasi Manual' jika ada hasil, 
             # JANGAN otomatis Teridentifikasi agar user bisa cek kartu satu-satu.
+            skor_tertinggi = kandidat_terbaik["skor"] if kandidat_terbaik else 0
             if jumlah_kokoh >= 1 or skor_tertinggi >= 40:
                 status_akhir = "Perlu Verifikasi Manual"
             else:
