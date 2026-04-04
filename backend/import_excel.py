@@ -96,5 +96,5 @@ def import_excel(filepath: str):
         db.close()
 
 if __name__ == "__main__":
-    file_path = r"../Alumni 2000-2025.xlsx"
+    file_path = r"../Data Alumni.xlsx"
     import_excel(file_path)
