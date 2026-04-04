@@ -14,6 +14,7 @@ let searchQuery = '';
 let currentTabStatus = 'Semua';
 
 let allAlumniData = []; 
+let globalTotalRecords = 0;
 
 function logout() {
     localStorage.removeItem('alumniq_token');
@@ -63,7 +64,14 @@ async function fetchAlumni(isBackgroundUpdate = false) {
         const data = await response.json();
         
         allAlumniData = data.data; // Server returned {data, total, page, limit}
+        globalTotalRecords = data.total;
         renderTable(data.total);
+        
+        // Auto-resume polling jika dilokal user merefresh halaman dan masih ada data yang tertunda
+        const isTracking = allAlumniData.some(a => a.status === 'Sedang Dilacak...');
+        if (isTracking && !pollingInterval) {
+            startPolling();
+        }
     } catch (error) {
         console.error("Error fetching data:", error);
         if (!isBackgroundUpdate) {
@@ -175,15 +183,22 @@ function nextPage() { currentPage++; fetchAlumni(); }
 
 // Trigger Tracking
 async function triggerTracking(id) {
+    // Optimistic UI Update: Ubah tombol menjadi loading secara instan tanpa menunggu fetch database selesai
+    const targetAlumni = allAlumniData.find(a => a.id === id);
+    if(targetAlumni) {
+        targetAlumni.status = 'Sedang Dilacak...';
+        renderTable(globalTotalRecords);
+    }
+    
     try {
         const res = await fetch(`${API_URL}/alumni/${id}/track`, { method: 'POST' });
         if (res.ok) {
             showToast('Sistem mulai mencari jejak alumni...', 'info');
-            fetchAlumni(true);
-            startPolling();
+            startPolling(); // Pollingnya biar jalan perlahan
         }
     } catch(e) {
         showToast('Gagal terhubung ke server', 'error');
+        if(targetAlumni) { targetAlumni.status = 'Belum Ditemukan'; renderTable(globalTotalRecords); }
     }
 }
 
