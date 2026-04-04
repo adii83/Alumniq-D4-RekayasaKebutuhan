@@ -1,14 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
 import time
 import random
 import requests
-import os
 from urllib.parse import quote_plus, urlparse
 from bs4 import BeautifulSoup
 
@@ -19,33 +16,21 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistem Pelacakan Alumni API")
 
-# Configure CORS - izinkan semua origin agar bisa diakses dari GitHub Pages / Render
+# Configure CORS for frontend access
+origins = [
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+    "http://localhost:3000",
+    "https://adii83.github.io",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Sajikan file frontend statis (index.html, login.html, app.js) dari folder parent
-_FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..")
-if os.path.isdir(_FRONTEND_DIR):
-    app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="static")
-
-@app.get("/")
-def serve_login():
-    login_path = os.path.join(_FRONTEND_DIR, "login.html")
-    if os.path.exists(login_path):
-        return FileResponse(login_path)
-    return {"message": "AlumniQ API"}
-
-@app.get("/app")
-def serve_app():
-    index_path = os.path.join(_FRONTEND_DIR, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {"message": "App not found"}
 
 
 def _fetch_text(url: str, timeout: int = 8) -> str:
@@ -396,7 +381,13 @@ class LoginRequest(schemas.BaseModel):
 
 @app.post("/login")
 def login(request: LoginRequest):
-    if request.username == "slamethariyadi" and request.password == "2023-221":
+    import os
+    # Mengambil kredensial dari Environment Variable (Aman di Github)
+    # Jika di Render tidak diset, maka akan memakai "admin" & "bukan-buat-publik" sbg default cadangan
+    valid_username = os.getenv("ADMIN_USERNAME", "admin")
+    valid_password = os.getenv("ADMIN_PASSWORD", "bukan-buat-publik")
+    
+    if request.username == valid_username and request.password == valid_password:
         return {"token": "dummy-jwt-token-12345"}
     raise HTTPException(status_code=401, detail="Invalid credentials")
 

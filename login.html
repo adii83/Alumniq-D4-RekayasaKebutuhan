@@ -43,7 +43,8 @@
             btn.innerText = 'Verifying...';
             
             try {
-                const res = await fetch('http://localhost:8000/login', {
+                // Ganti dengan URL backend Render
+                const res = await fetch('https://backend-alumni-api.onrender.com/login', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username: u, password: p})
@@ -52,20 +53,14 @@
                 if(res.ok) {
                     const data = await res.json();
                     localStorage.setItem('alumniq_token', data.token);
-                    localStorage.setItem('api_backend', 'http://localhost:8000');
                     window.location.href = 'index.html';
                 } else {
                     document.getElementById('error-msg').classList.remove('hidden');
                 }
             } catch (err) {
-                // If local server is entirely dead, fall back to bypass if password correct
-                if(u === 'slamethariyadi' && p === '2023-221') {
-                    localStorage.setItem('alumniq_token', 'local-bypass');
-                    localStorage.setItem('api_backend', 'http://localhost:8000');
-                    window.location.href = 'index.html';
-                } else {
-                    document.getElementById('error-msg').classList.remove('hidden');
-                }
+                // Tampilkan error jika gagal terhubung ke server sama sekali
+                document.getElementById('error-msg').innerText = "Gagal terhubung ke server!";
+                document.getElementById('error-msg').classList.remove('hidden');
             }
             btn.innerText = 'Sistem Login';
         });

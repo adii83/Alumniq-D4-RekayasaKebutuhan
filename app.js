@@ -4,8 +4,8 @@ if (!token) {
     window.location.href = 'login.html';
 }
 
-// API URL: gunakan dari localStorage (disimpan saat login) atau default localhost
-const API_URL = localStorage.getItem('api_backend') || 'http://localhost:8000';
+// Ganti variabel ini dengan link URL backend Anda dari Render setelah ter-deploy
+const API_URL = 'https://backend-alumni-api.onrender.com';
 
 // Global State
 let currentPage = 1;
