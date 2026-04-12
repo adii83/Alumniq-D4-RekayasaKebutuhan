@@ -230,6 +230,8 @@ def fetch_data_dari_internet(query: str, max_pages: int = 2) -> list[dict]:
 
                 try:
                     page.wait_for_timeout(1200)
+                    current_url = page.url
+                    page_title = page.title()
                     html = page.content()
                     soup = BeautifulSoup(html, "html.parser")
                 except Exception as parse_error:
@@ -240,6 +242,10 @@ def fetch_data_dari_internet(query: str, max_pages: int = 2) -> list[dict]:
                 if not results:
                     results = soup.select("h3.title")
                 if not results:
+                    snippet = " ".join(soup.get_text(" ", strip=True).split())[:500]
+                    print(f"[Scraper] Tidak ada selector hasil untuk URL akhir: {current_url}")
+                    print(f"[Scraper] Judul halaman: {page_title}")
+                    print(f"[Scraper] Potongan konten: {snippet}")
                     break
 
                 ada_hasil = False
