@@ -228,17 +228,27 @@ def fetch_data_dari_internet(query: str, max_pages: int = 2) -> list[dict]:
                 except Exception:
                     pass  # Lanjut walau timeout
 
-                results = page.query_selector_all(".compTitle")
+                try:
+                    page.wait_for_timeout(1200)
+                    html = page.content()
+                    soup = BeautifulSoup(html, "html.parser")
+                except Exception as parse_error:
+                    print(f"[Scraper] Gagal membaca konten halaman: {parse_error}")
+                    break
+
+                results = soup.select(".compTitle")
+                if not results:
+                    results = soup.select("h3.title")
                 if not results:
                     break
 
                 ada_hasil = False
                 for comp in results:
-                    a = comp.query_selector("a")
+                    a = comp.select_one("a")
                     if not a:
                         continue
-                    title = (a.inner_text() or "").strip()
-                    href = a.get_attribute("href") or ""
+                    title = a.get_text(" ", strip=True)
+                    href = a.get("href", "").strip()
 
                     # Ekstrak URL asli dari redirect Yahoo
                     if "yahoo.com" in href and "RU=" in href:
@@ -248,10 +258,9 @@ def fetch_data_dari_internet(query: str, max_pages: int = 2) -> list[dict]:
                         except Exception:
                             pass
 
-                    # Ambil snippet dari li parent
-                    snip = comp.evaluate(
-                        "el => { const li = el.closest('li'); return li ? li.innerText : ''; }"
-                    ) or ""
+                    # Ambil snippet dari blok parent hasil pencarian
+                    parent = comp.find_parent("li") or comp.find_parent("div")
+                    snip = parent.get_text(" ", strip=True) if parent else comp.get_text(" ", strip=True)
                     snip = snip[:300]  # Batasi panjang
 
                     if not title or not href or "yahoo.com" in href:
