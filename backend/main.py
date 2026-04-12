@@ -522,7 +522,9 @@ def mock_scraping_task(alumni_id: int): # Tidak lagi butuh db dari argumen
         print(f"[Error] Gagal saat pelacakan background: {e}")
         if 'db' in locals():
             try:
+                db.rollback()
                 alumni.status = "Gagal"
+                alumni.last_tracked = datetime.now()
                 db.commit()
             except:
                 pass
