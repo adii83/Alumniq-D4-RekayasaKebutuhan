@@ -5,7 +5,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 # Jika ada DATABASE_URL (dari Render), gunakan itu (Postgres). 
 # Jika tidak ada, gunakan SQLite lokal.
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://neondb_owner:npg_hewTGSV2oK5a@ep-falling-voice-a12hrpdh-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./alumni_tracking.db")
 
 # Fix untuk Postgres di Render (ganti postgres:// jadi postgresql:// jika perlu)
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):

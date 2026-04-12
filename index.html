@@ -50,7 +50,6 @@
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Database Alumni</h1>
-                <p class="text-slate-500 mt-1">Cari dan lacak data alumni dari Excel.</p>
             </div>
             
             <!-- Search Bar -->
@@ -60,6 +59,70 @@
                 <button type="submit" class="absolute right-2 top-1.5 bottom-1.5 px-6 rounded-full premium-bg text-white font-semibold text-sm hover:opacity-90 transition shadow-md">Cari</button>
             </form>
         </div>
+
+        <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <div class="premium-card rounded-2xl p-5 border border-slate-200">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Semua Data</p>
+                <p id="summary-total" class="mt-3 text-3xl font-bold text-slate-900">0</p>
+                <p class="mt-1 text-sm text-slate-500">Total profil alumni yang tersimpan di sistem.</p>
+            </div>
+            <div class="premium-card rounded-2xl p-5 border border-emerald-200 bg-emerald-50/60">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">Teridentifikasi</p>
+                <p id="summary-identified" class="mt-3 text-3xl font-bold text-emerald-700">0</p>
+                <p class="mt-1 text-sm text-emerald-700/80">Profil dengan data yang sudah siap ditinjau.</p>
+            </div>
+            <div class="premium-card rounded-2xl p-5 border border-amber-200 bg-amber-50/70">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">Perlu Verifikasi</p>
+                <p id="summary-verification" class="mt-3 text-3xl font-bold text-amber-700">0</p>
+                <p class="mt-1 text-sm text-amber-700/80">Masih menunggu pengecekan akhir operator.</p>
+            </div>
+            <div class="premium-card rounded-2xl p-5 border border-slate-200">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Belum Ditemukan</p>
+                <p id="summary-not-found" class="mt-3 text-3xl font-bold text-slate-700">0</p>
+                <p class="mt-1 text-sm text-slate-500">Belum memiliki data pendukung yang cukup.</p>
+            </div>
+        </section>
+
+        <section class="premium-card rounded-2xl border border-slate-200 p-6 mb-6">
+            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-5">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Ringkasan Status Alumni</h2>
+                    <p class="text-sm text-slate-500">Perbandingan distribusi status pada keseluruhan data alumni.</p>
+                </div>
+                <div class="text-sm text-slate-500">
+                    Total profil: <span id="summary-total-inline" class="font-semibold text-slate-700">0</span>
+                </div>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <div class="flex items-center justify-between text-sm mb-2">
+                        <span class="font-medium text-slate-700">Teridentifikasi</span>
+                        <span id="chart-identified-label" class="text-emerald-700 font-semibold">0</span>
+                    </div>
+                    <div class="h-3 rounded-full bg-slate-100 overflow-hidden">
+                        <div id="chart-identified-bar" class="h-full rounded-full bg-emerald-500 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between text-sm mb-2">
+                        <span class="font-medium text-slate-700">Perlu Verifikasi</span>
+                        <span id="chart-verification-label" class="text-amber-700 font-semibold">0</span>
+                    </div>
+                    <div class="h-3 rounded-full bg-slate-100 overflow-hidden">
+                        <div id="chart-verification-bar" class="h-full rounded-full bg-amber-500 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between text-sm mb-2">
+                        <span class="font-medium text-slate-700">Belum Ditemukan</span>
+                        <span id="chart-not-found-label" class="text-slate-700 font-semibold">0</span>
+                    </div>
+                    <div class="h-3 rounded-full bg-slate-100 overflow-hidden">
+                        <div id="chart-not-found-bar" class="h-full rounded-full bg-slate-500 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <!-- Kategori / Tabs Status -->
         <div class="flex overflow-x-auto hide-scrollbar mb-6 border-b border-slate-200">
@@ -192,6 +255,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>

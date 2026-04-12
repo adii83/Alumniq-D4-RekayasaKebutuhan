@@ -4,8 +4,10 @@ if (!token) {
     window.location.href = 'login.html';
 }
 
-// Ganti variabel ini dengan link URL backend Anda dari Render setelah ter-deploy
-const API_URL = 'https://alumniq-d4-rekayasa-kebutuhan.onrender.com';
+// Pakai backend lokal saat dibuka via localhost/127.0.0.1, selain itu fallback ke Render.
+const API_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? 'http://127.0.0.1:8000'
+    : 'https://alumniq-d4-rekayasa-kebutuhan.onrender.com';
 
 // Global State
 let currentPage = 1;
@@ -15,10 +17,37 @@ let currentTabStatus = 'Semua';
 
 let allAlumniData = []; 
 let globalTotalRecords = 0;
+let globalStatusCounts = {
+    Semua: 0,
+    Teridentifikasi: 0,
+    'Perlu Verifikasi Manual': 0,
+    'Belum Ditemukan': 0,
+};
+
+function formatNumber(value) {
+    return new Intl.NumberFormat('id-ID').format(value || 0);
+}
 
 function logout() {
     localStorage.removeItem('alumniq_token');
     window.location.href = 'login.html';
+}
+
+function authHeaders(extraHeaders = {}) {
+    const currentToken = localStorage.getItem('alumniq_token');
+    return {
+        ...extraHeaders,
+        Authorization: `Bearer ${currentToken}`,
+    };
+}
+
+function handleUnauthorized(response) {
+    if (response.status === 401) {
+        localStorage.removeItem('alumniq_token');
+        window.location.href = 'login.html';
+        return true;
+    }
+    return false;
 }
 
 document.getElementById('searchForm').addEventListener('submit', (e) => {
@@ -27,6 +56,31 @@ document.getElementById('searchForm').addEventListener('submit', (e) => {
     currentPage = 1;
     fetchAlumni();
 });
+
+async function fetchStatusCounts() {
+    const requests = [
+        fetch(`${API_URL}/alumni/?page=1&limit=1`, { headers: authHeaders() }),
+        fetch(`${API_URL}/alumni/?page=1&limit=1&status=${encodeURIComponent('Teridentifikasi')}`, { headers: authHeaders() }),
+        fetch(`${API_URL}/alumni/?page=1&limit=1&status=${encodeURIComponent('Perlu Verifikasi Manual')}`, { headers: authHeaders() }),
+        fetch(`${API_URL}/alumni/?page=1&limit=1&status=${encodeURIComponent('Belum Ditemukan')}`, { headers: authHeaders() }),
+    ];
+
+    const [allRes, identifiedRes, verificationRes, notFoundRes] = await Promise.all(requests);
+    const [allData, identifiedData, verificationData, notFoundData] = await Promise.all(
+        [allRes, identifiedRes, verificationRes, notFoundRes].map((res) => {
+            if (handleUnauthorized(res)) throw new Error('Unauthorized');
+            if (!res.ok) throw new Error('API Error');
+            return res.json();
+        })
+    );
+
+    return {
+        Semua: allData.total || 0,
+        Teridentifikasi: identifiedData.total || 0,
+        'Perlu Verifikasi Manual': verificationData.total || 0,
+        'Belum Ditemukan': notFoundData.total || 0,
+    };
+}
 
 // Set Tab Filter
 function setTabFilter(status) {
@@ -59,12 +113,15 @@ async function fetchAlumni(isBackgroundUpdate = false) {
     if (currentTabStatus !== 'Semua') url += `&status=${encodeURIComponent(currentTabStatus)}`;
     
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, { headers: authHeaders() });
+        if (handleUnauthorized(response)) return;
         if (!response.ok) throw new Error('API Error');
         const data = await response.json();
         
         allAlumniData = data.data; // Server returned {data, total, page, limit}
         globalTotalRecords = data.total;
+        globalStatusCounts = data.status_counts || await fetchStatusCounts();
+        renderSummary(globalStatusCounts);
         renderTable(data.total);
         
         // Auto-resume polling jika dilokal user merefresh halaman dan masih ada data yang tertunda
@@ -82,6 +139,29 @@ async function fetchAlumni(isBackgroundUpdate = false) {
             document.getElementById('loading').classList.add('hidden');
         }
     }
+}
+
+function renderSummary(counts) {
+    const total = counts.Semua || 0;
+    const identified = counts.Teridentifikasi || 0;
+    const verification = counts['Perlu Verifikasi Manual'] || 0;
+    const notFound = counts['Belum Ditemukan'] || 0;
+
+    document.getElementById('summary-total').innerText = formatNumber(total);
+    document.getElementById('summary-total-inline').innerText = formatNumber(total);
+    document.getElementById('summary-identified').innerText = formatNumber(identified);
+    document.getElementById('summary-verification').innerText = formatNumber(verification);
+    document.getElementById('summary-not-found').innerText = formatNumber(notFound);
+
+    const toPercent = (value) => total ? `${((value / total) * 100).toFixed(1)}%` : '0%';
+
+    document.getElementById('chart-identified-label').innerText = `${formatNumber(identified)} (${toPercent(identified)})`;
+    document.getElementById('chart-verification-label').innerText = `${formatNumber(verification)} (${toPercent(verification)})`;
+    document.getElementById('chart-not-found-label').innerText = `${formatNumber(notFound)} (${toPercent(notFound)})`;
+
+    document.getElementById('chart-identified-bar').style.width = toPercent(identified);
+    document.getElementById('chart-verification-bar').style.width = toPercent(verification);
+    document.getElementById('chart-not-found-bar').style.width = toPercent(notFound);
 }
 
 function renderTable(total) {
@@ -173,7 +253,7 @@ function renderTable(total) {
     });
     
     // Update pagination controls
-    document.getElementById('pagination-info').innerText = `Menampilkan ${(currentPage-1)*limit + 1} - ${Math.min(currentPage*limit, total)} dari ${total} total data`;
+    document.getElementById('pagination-info').innerText = `Menampilkan ${formatNumber((currentPage-1)*limit + 1)} - ${formatNumber(Math.min(currentPage*limit, total))} dari ${formatNumber(total)} total data`;
     document.getElementById('btnPrev').disabled = currentPage === 1;
     document.getElementById('btnNext').disabled = currentPage * limit >= total;
 }
@@ -191,7 +271,11 @@ async function triggerTracking(id) {
     }
     
     try {
-        const res = await fetch(`${API_URL}/alumni/${id}/track`, { method: 'POST' });
+        const res = await fetch(`${API_URL}/alumni/${id}/track`, {
+            method: 'POST',
+            headers: authHeaders(),
+        });
+        if (handleUnauthorized(res)) return;
         if (res.ok) {
             showToast('Sistem mulai mencari jejak alumni...', 'info');
             startPolling(); // Pollingnya biar jalan perlahan
@@ -246,7 +330,10 @@ async function openDetailModal(id) {
     let linksHtml = '<p class="text-sm text-slate-400 italic">Belum ada jejak yang terlacak/tersimpan.</p>';
     if (alumni.status !== 'Belum Dilacak' && alumni.status !== 'Belum Ditemukan') {
         try {
-            const resp = await fetch(`${API_URL}/alumni/${id}/results`);
+            const resp = await fetch(`${API_URL}/alumni/${id}/results`, {
+                headers: authHeaders(),
+            });
+            if (handleUnauthorized(resp)) return;
             if (resp.ok) {
                 _modalResults = await resp.json();
                 if (_modalResults && _modalResults.length > 0) {
@@ -309,7 +396,7 @@ async function modalSaveVerified() {
     try {
         await fetch(`${API_URL}/alumni/${_modalAlumniId}/verify`, {
             method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
+            headers: authHeaders({'Content-Type': 'application/json'}),
             body: JSON.stringify(payload)
         });
         showToast('Data alumni berhasil diverifikasi & disimpan', 'success');
@@ -323,7 +410,7 @@ async function modalMarkNotFound() {
     try {
         await fetch(`${API_URL}/alumni/${_modalAlumniId}/verify`, {
             method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
+            headers: authHeaders({'Content-Type': 'application/json'}),
             body: JSON.stringify({status: 'Belum Ditemukan'})
         });
         showToast('Ditandai tidak ditemukan', 'info');

@@ -43,6 +43,7 @@ class PaginatedAlumniResponse(BaseModel):
     total: int
     page: int
     limit: int
+    status_counts: dict[str, int]
 
 class TrackingResultBase(BaseModel):
     alumni_id: int

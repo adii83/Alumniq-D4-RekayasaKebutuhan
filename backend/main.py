@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
@@ -8,6 +8,12 @@ import random
 import requests
 from urllib.parse import quote_plus, urlparse
 from bs4 import BeautifulSoup
+import os
+import hmac
+import json
+import base64
+import hashlib
+import secrets
 
 import models, schemas
 from database import engine, get_db
@@ -15,6 +21,129 @@ from database import engine, get_db
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistem Pelacakan Alumni API")
+
+TOKEN_TTL_SECONDS = int(os.getenv("TOKEN_TTL_SECONDS", "28800"))
+LOGIN_MAX_ATTEMPTS = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
+LOGIN_WINDOW_SECONDS = int(os.getenv("LOGIN_WINDOW_SECONDS", "600"))
+LOGIN_LOCKOUT_SECONDS = int(os.getenv("LOGIN_LOCKOUT_SECONDS", "900"))
+_login_attempts: dict[str, dict] = {}
+
+
+def _base64url_encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def _base64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + padding)
+
+
+def get_secret_key() -> str:
+    secret_key = os.getenv("SECRET_KEY")
+    if not secret_key:
+        raise HTTPException(
+            status_code=500,
+            detail="SECRET_KEY belum dikonfigurasi pada environment server.",
+        )
+    return secret_key
+
+
+def get_admin_username() -> str:
+    username = os.getenv("ADMIN_USERNAME")
+    if not username:
+        raise HTTPException(
+            status_code=500,
+            detail="ADMIN_USERNAME belum dikonfigurasi pada environment server.",
+        )
+    return username
+
+
+def get_admin_password() -> str:
+    password = os.getenv("ADMIN_PASSWORD")
+    if not password:
+        raise HTTPException(
+            status_code=500,
+            detail="ADMIN_PASSWORD belum dikonfigurasi pada environment server.",
+        )
+    return password
+
+
+def create_token(username: str) -> str:
+    secret_key = get_secret_key()
+    header = {"alg": "HS256", "typ": "JWT"}
+    payload = {
+        "sub": username,
+        "iat": int(time.time()),
+        "exp": int(time.time()) + TOKEN_TTL_SECONDS,
+        "jti": secrets.token_urlsafe(12),
+    }
+    header_b64 = _base64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+    payload_b64 = _base64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
+    signature = hmac.new(secret_key.encode("utf-8"), signing_input, hashlib.sha256).digest()
+    return f"{header_b64}.{payload_b64}.{_base64url_encode(signature)}"
+
+
+def verify_token(token: str) -> dict:
+    secret_key = get_secret_key()
+    try:
+        header_b64, payload_b64, signature_b64 = token.split(".")
+        signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
+        expected_signature = hmac.new(secret_key.encode("utf-8"), signing_input, hashlib.sha256).digest()
+        provided_signature = _base64url_decode(signature_b64)
+        if not hmac.compare_digest(expected_signature, provided_signature):
+            raise ValueError("Invalid signature")
+        payload = json.loads(_base64url_decode(payload_b64).decode("utf-8"))
+        if int(payload.get("exp", 0)) < int(time.time()):
+            raise ValueError("Token expired")
+        return payload
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token tidak valid atau sudah kedaluwarsa.")
+
+
+def get_client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def ensure_login_allowed(client_ip: str) -> None:
+    now = time.time()
+    state = _login_attempts.get(client_ip)
+    if not state:
+        return
+    if state.get("locked_until", 0) > now:
+        retry_after = int(state["locked_until"] - now)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Terlalu banyak percobaan login. Coba lagi dalam {retry_after} detik.",
+        )
+    if state.get("window_start", 0) + LOGIN_WINDOW_SECONDS <= now:
+        _login_attempts.pop(client_ip, None)
+
+
+def record_login_failure(client_ip: str) -> None:
+    now = time.time()
+    state = _login_attempts.get(client_ip)
+    if not state or state.get("window_start", 0) + LOGIN_WINDOW_SECONDS <= now:
+        state = {"count": 0, "window_start": now, "locked_until": 0}
+    state["count"] += 1
+    if state["count"] >= LOGIN_MAX_ATTEMPTS:
+        state["locked_until"] = now + LOGIN_LOCKOUT_SECONDS
+    _login_attempts[client_ip] = state
+
+
+def clear_login_failures(client_ip: str) -> None:
+    _login_attempts.pop(client_ip, None)
+
+
+def require_auth(authorization: str = Header(default="")) -> str:
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token otorisasi tidak ditemukan.")
+    token = authorization.removeprefix("Bearer ").strip()
+    payload = verify_token(token)
+    return payload.get("sub", "")
 
 @app.on_event("startup")
 def reset_stuck_tracking():
@@ -404,17 +533,22 @@ class LoginRequest(schemas.BaseModel):
     password: str
 
 @app.post("/login")
-def login(request: LoginRequest):
-    import os
-    valid_username = os.getenv("ADMIN_USERNAME", "admin")
-    valid_password = os.getenv("ADMIN_PASSWORD", "bukan-buat-publik")
-    
-    if request.username == valid_username and request.password == valid_password:
-        return {"token": "dummy-jwt-token-12345"}
+def login(request: LoginRequest, http_request: Request):
+    client_ip = get_client_ip(http_request)
+    ensure_login_allowed(client_ip)
+
+    valid_username = get_admin_username()
+    valid_password = get_admin_password()
+
+    if hmac.compare_digest(request.username, valid_username) and hmac.compare_digest(request.password, valid_password):
+        clear_login_failures(client_ip)
+        return {"token": create_token(valid_username), "expires_in": TOKEN_TTL_SECONDS}
+
+    record_login_failure(client_ip)
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @app.post("/alumni/", response_model=schemas.AlumniResponse)
-def create_alumni(alumni: schemas.AlumniCreate, db: Session = Depends(get_db)):
+def create_alumni(alumni: schemas.AlumniCreate, db: Session = Depends(get_db), _: str = Depends(require_auth)):
     # We no longer check for unique NIM based on user request. 
     # Just insert the new target directly.
     new_alumni = models.Alumni(
@@ -431,8 +565,18 @@ def create_alumni(alumni: schemas.AlumniCreate, db: Session = Depends(get_db)):
 
 from typing import List, Optional
 
+
+def build_status_counts(db: Session) -> dict[str, int]:
+    counts = {
+        "Semua": db.query(models.Alumni).count(),
+        "Teridentifikasi": db.query(models.Alumni).filter(models.Alumni.status == "Teridentifikasi").count(),
+        "Perlu Verifikasi Manual": db.query(models.Alumni).filter(models.Alumni.status == "Perlu Verifikasi Manual").count(),
+        "Belum Ditemukan": db.query(models.Alumni).filter(models.Alumni.status.in_(["Belum Ditemukan", "Belum Dilacak", "Gagal"])).count(),
+    }
+    return counts
+
 @app.get("/alumni/", response_model=schemas.PaginatedAlumniResponse)
-def get_all_alumni(q: Optional[str] = None, status: Optional[str] = None, page: int = 1, limit: int = 20, db: Session = Depends(get_db)):
+def get_all_alumni(q: Optional[str] = None, status: Optional[str] = None, page: int = 1, limit: int = 20, db: Session = Depends(get_db), _: str = Depends(require_auth)):
     query = db.query(models.Alumni)
     if q:
         # Cari berdasarkan nama atau NIM
@@ -455,10 +599,16 @@ def get_all_alumni(q: Optional[str] = None, status: Optional[str] = None, page: 
     offset = (page - 1) * limit
     data = query.offset(offset).limit(limit).all()
     
-    return {"data": data, "total": total, "page": page, "limit": limit}
+    return {
+        "data": data,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "status_counts": build_status_counts(db),
+    }
 
 @app.post("/alumni/{alumni_id}/track")
-def trigger_tracking(alumni_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def trigger_tracking(alumni_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), _: str = Depends(require_auth)):
     alumni = db.query(models.Alumni).filter(models.Alumni.id == alumni_id).first()
     if not alumni:
         raise HTTPException(status_code=404, detail="Alumni not found")
@@ -474,11 +624,11 @@ def trigger_tracking(alumni_id: int, background_tasks: BackgroundTasks, db: Sess
     return {"message": f"Tracking job started for {alumni.name}"}
 
 @app.get("/alumni/{alumni_id}/results", response_model=List[schemas.TrackingResultResponse])
-def get_tracking_results(alumni_id: int, db: Session = Depends(get_db)):
+def get_tracking_results(alumni_id: int, db: Session = Depends(get_db), _: str = Depends(require_auth)):
     return db.query(models.TrackingResult).filter(models.TrackingResult.alumni_id == alumni_id).all()
 
 @app.put("/alumni/{alumni_id}/verify")
-def manual_verify(alumni_id: int, payload: dict, db: Session = Depends(get_db)):
+def manual_verify(alumni_id: int, payload: dict, db: Session = Depends(get_db), _: str = Depends(require_auth)):
     alumni = db.query(models.Alumni).filter(models.Alumni.id == alumni_id).first()
     if not alumni:
         raise HTTPException(status_code=404, detail="Alumni not found")
@@ -504,7 +654,7 @@ def manual_verify(alumni_id: int, payload: dict, db: Session = Depends(get_db)):
     return {"message": "Status updated via manual verification"}
 
 @app.delete("/alumni/{alumni_id}")
-def delete_alumni(alumni_id: int, db: Session = Depends(get_db)):
+def delete_alumni(alumni_id: int, db: Session = Depends(get_db), _: str = Depends(require_auth)):
     alumni = db.query(models.Alumni).filter(models.Alumni.id == alumni_id).first()
     if not alumni:
         raise HTTPException(status_code=404, detail="Alumni not found")

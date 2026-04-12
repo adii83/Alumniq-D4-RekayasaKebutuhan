@@ -35,6 +35,10 @@
     </div>
 
     <script>
+        const API_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+            ? 'http://127.0.0.1:8000'
+            : 'https://alumniq-d4-rekayasa-kebutuhan.onrender.com';
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const u = document.getElementById('username').value;
@@ -43,8 +47,7 @@
             btn.innerText = 'Verifying...';
             
             try {
-                // Ganti dengan URL backend Render
-                const res = await fetch('https://alumniq-d4-rekayasa-kebutuhan.onrender.com/login', {
+                const res = await fetch(`${API_URL}/login`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username: u, password: p})
@@ -55,6 +58,8 @@
                     localStorage.setItem('alumniq_token', data.token);
                     window.location.href = 'index.html';
                 } else {
+                    const errorData = await res.json().catch(() => ({}));
+                    document.getElementById('error-msg').innerText = errorData.detail || 'Username atau password salah!';
                     document.getElementById('error-msg').classList.remove('hidden');
                 }
             } catch (err) {
