@@ -37,6 +37,7 @@ def import_excel(filepath: str):
     # Buang nan
     df[col_name] = df[col_name].fillna("")
     df = df[df[col_name].str.strip() != ""]
+    df = df.iloc[::-1].reset_index(drop=True)
 
     db: Session = SessionLocal()
     
